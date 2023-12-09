@@ -12,7 +12,8 @@ A light-weight client for the [FlipsideCrypto SQL query api](https://flipsidecry
 
 ### Installation
 
-Install by adding it to your DI container.
+- Install package from [Nuget](https://www.nuget.org/packages/FlipsideCrypto.NET/)
+- Add it to your applications DI container.
 
 ```cs
 services.AddFlipsideCrypto(API_KEY)
