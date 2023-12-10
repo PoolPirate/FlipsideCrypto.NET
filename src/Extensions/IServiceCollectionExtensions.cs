@@ -22,4 +22,21 @@ public static class IServiceCollectionExtensions
 
         return services;
     }
+
+    public static IServiceCollection AddFlipsideCrypto(this IServiceCollection services, 
+        Action<IServiceProvider, FlipsideOptionBuilder> configure)
+    {
+        _ = services.AddSingleton<HttpClient>();
+        _ = services.AddSingleton<JsonRPCClient>();
+        _ = services.AddSingleton<IFlipsideClient, FlipsideClient>();
+
+        _ = services.AddSingleton(provider =>
+        {
+            var builder = new FlipsideOptionBuilder();
+            configure.Invoke(provider, builder);
+            return builder.Build();
+        });
+
+        return services;
+    }
 }
