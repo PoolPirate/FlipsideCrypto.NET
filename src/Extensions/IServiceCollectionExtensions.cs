@@ -16,7 +16,8 @@ public static class IServiceCollectionExtensions
         configure?.Invoke(builder);
 
         _ = services.AddSingleton(builder.Build());
-        _ = services.AddSingleton<HttpClient>();
+        _ = services.AddHttpClient<JsonRPCClient>()
+            .AddStandardResilienceHandler();
         _ = services.AddSingleton<JsonRPCClient>();
         _ = services.AddSingleton<IFlipsideClient, FlipsideClient>();
 

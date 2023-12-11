@@ -6,6 +6,9 @@ using FlipsideCrypto.NET.Models.JsonRPC.CreateQueryRun;
 using FlipsideCrypto.NET.Models.JsonRPC.GetQueryRun;
 using FlipsideCrypto.NET.Models.JsonRPC.GetQueryRunResults;
 using FlipsideCrypto.NET.Models.ValueObjects;
+using Polly;
+using Polly.Contrib.WaitAndRetry;
+using Polly.Retry;
 using System.Reflection;
 using System.Text.Json;
 
@@ -103,6 +106,36 @@ internal class FlipsideClient : IFlipsideClient
         }
 
         return output;
+    }
+
+    private readonly AsyncRetryPolicy<QueryRun> _runPolicy = Policy
+        .HandleResult<QueryRun>(x => x.State != QueryState.Success && x.State != QueryState.Failed && x.State != QueryState.Cancelled)
+        .WaitAndRetryAsync(Backoff.DecorrelatedJitterBackoffV2(TimeSpan.FromSeconds(3), 100));
+
+    public async Task<TModel[]> RunQueryAsync<TModel>(string sql, 
+        int page = 1, int pageSize = 10000, CancellationToken cancellationToken = default) 
+        where TModel : class, new()
+    {
+        var runId = await CreateQueryRunAsync(sql, cancellationToken);
+        var result = await _runPolicy.ExecuteAndCaptureAsync((cToken) => GetQueryRunAsync(runId, cToken), cancellationToken);
+
+        if (result.Outcome != OutcomeType.Successful)
+        {
+            if (result.FaultType.HasValue && result.FaultType.Value == FaultType.UnhandledException)
+            {
+                throw result.FinalException;
+            }
+
+            throw new Exception("Unknown error occured while running query");
+        }
+
+        return result.Result.State switch
+        {
+            QueryState.Success => await GetQueryRunResults<TModel>(runId, page, pageSize, cancellationToken),
+            QueryState.Failed => throw new Exception("Query execution failed"),
+            QueryState.Cancelled => throw new OperationCanceledException("Query execution has been cancelled"),
+            _ => throw new NotSupportedException(),
+        };
     }
 
     public async Task<QueryRun> CancelQueryAsync(QueryRunId runId, CancellationToken cancellationToken = default)
