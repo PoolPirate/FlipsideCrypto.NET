@@ -131,10 +131,10 @@ internal class FlipsideClient : IFlipsideClient
 
         return result.Result.State switch
         {
-            QueryState.Success => await GetQueryRunResults<TModel>(runId, page, pageSize, cancellationToken),
-            QueryState.Failed => throw new Exception("Query execution failed"),
+            QueryState.Success => result.Result,
+            QueryState.Failed => throw new Exception($"Query execution failed! {result.Result.ErrorName}: {result.Result.ErrorMessage}"),
             QueryState.Cancelled => throw new OperationCanceledException("Query execution has been cancelled"),
-            _ => throw new NotSupportedException(),
+            _ => throw new ImpossibleException("Query execution completed but QueryState not in any completed state"),
         };
     }
 

@@ -9,6 +9,9 @@ public class QueryRun
     public required int? RowCount { get; init; }
     public required int? TotalSize { get; init; }
 
+    public required string? ErrorName { get; init; }
+    public required string? ErrorMessage { get; init; }
+
     public required DateTimeOffset? StartedAt { get; init; }
     public required DateTimeOffset? QueryRunningEndedAt { get; init; }
     public required DateTimeOffset? QueryStreamingEndedAt { get; init; }
