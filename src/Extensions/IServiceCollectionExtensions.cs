@@ -24,7 +24,7 @@ public static class IServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddFlipsideCrypto(this IServiceCollection services, 
+    public static IServiceCollection AddFlipsideCrypto(this IServiceCollection services,
         Action<IServiceProvider, FlipsideOptionBuilder> configure)
     {
         _ = services.AddSingleton<HttpClient>();

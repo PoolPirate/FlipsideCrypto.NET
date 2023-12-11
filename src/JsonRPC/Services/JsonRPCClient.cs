@@ -1,5 +1,4 @@
 ﻿using FlipsideCrypto.NET.JsonRPC.Models;
-using Polly;
 using System.Net.Http.Json;
 using System.Text.Json;
 
