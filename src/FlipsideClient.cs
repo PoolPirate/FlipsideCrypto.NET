@@ -1,4 +1,5 @@
-﻿using FlipsideCrypto.NET.Configuration;
+﻿using FlipsideCrypto.NET.Common;
+using FlipsideCrypto.NET.Configuration;
 using FlipsideCrypto.NET.JsonRPC.Services;
 using FlipsideCrypto.NET.Models;
 using FlipsideCrypto.NET.Models.JsonRPC.CancelQueryRun;
@@ -10,6 +11,7 @@ using Polly;
 using Polly.Contrib.WaitAndRetry;
 using Polly.Retry;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace FlipsideCrypto.NET;
@@ -112,16 +114,14 @@ internal class FlipsideClient : IFlipsideClient
         .HandleResult<QueryRun>(x => x.State != QueryState.Success && x.State != QueryState.Failed && x.State != QueryState.Cancelled)
         .WaitAndRetryAsync(Backoff.DecorrelatedJitterBackoffV2(TimeSpan.FromSeconds(3), 100));
 
-    public async Task<TModel[]> RunQueryAsync<TModel>(string sql, 
-        int page = 1, int pageSize = 10000, CancellationToken cancellationToken = default) 
-        where TModel : class, new()
+    private async Task<QueryRun> RunQueryAndWaitForCompletionAsync(string sql, CancellationToken cancellationToken = default)
     {
         var runId = await CreateQueryRunAsync(sql, cancellationToken);
         var result = await _runPolicy.ExecuteAndCaptureAsync((cToken) => GetQueryRunAsync(runId, cToken), cancellationToken);
 
-        if (result.Outcome != OutcomeType.Successful)
+        if(result.Outcome != OutcomeType.Successful)
         {
-            if (result.FaultType.HasValue && result.FaultType.Value == FaultType.UnhandledException)
+            if(result.FaultType.HasValue && result.FaultType.Value == FaultType.UnhandledException)
             {
                 throw result.FinalException;
             }
@@ -136,6 +136,33 @@ internal class FlipsideClient : IFlipsideClient
             QueryState.Cancelled => throw new OperationCanceledException("Query execution has been cancelled"),
             _ => throw new ImpossibleException("Query execution completed but QueryState not in any completed state"),
         };
+    }
+
+    public async Task<TModel[]> RunQueryAsync<TModel>(string sql,
+        int page = 1, int pageSize = 10000, CancellationToken cancellationToken = default)
+        where TModel : class, new()
+    {
+        var queryRun = await RunQueryAndWaitForCompletionAsync(sql, cancellationToken);
+        return await GetQueryRunResults<TModel>(queryRun.Id, page, pageSize, cancellationToken);
+    }
+
+    public async IAsyncEnumerable<TModel[]> RunBatchedQueryAsync<TModel>(string sql,
+        int batchSize = 10000, [EnumeratorCancellation] CancellationToken cancellationToken = default) where TModel : class, new()
+    {
+        var queryRun = await RunQueryAndWaitForCompletionAsync(sql, cancellationToken);
+
+        if(!queryRun.RowCount.HasValue)
+        {
+            throw new ImpossibleException("Query successful but RowCount not set");
+        }
+
+        int pageCount = Math.Min(1, queryRun.RowCount.Value / batchSize);
+
+        for(int i = 0; i < pageCount; i++)
+        {
+            var results = await GetQueryRunResults<TModel>(queryRun.Id, i + 1, batchSize, cancellationToken);
+            yield return results;
+        }
     }
 
     public async Task<QueryRun> CancelQueryAsync(QueryRunId runId, CancellationToken cancellationToken = default)
