@@ -59,6 +59,27 @@ internal class FlipsideClient : IFlipsideClient
         return result.QueryRun.Id;
     }
 
+    private readonly AsyncRetryPolicy<QueryRun> _runPolicy = Policy
+        .HandleResult<QueryRun>(x => x.State != QueryState.Success && x.State != QueryState.Failed && x.State != QueryState.Cancelled)
+        .WaitAndRetryAsync(Backoff.DecorrelatedJitterBackoffV2(TimeSpan.FromSeconds(3), 100));
+
+    public async Task<QueryRun> WaitForQueryCompletionAsync(QueryRunId runId, CancellationToken cancellationToken = default)
+    {
+        var result = await _runPolicy.ExecuteAndCaptureAsync((cToken) => GetQueryRunAsync(runId, cToken), cancellationToken);
+
+        if(result.Outcome != OutcomeType.Successful)
+        {
+            if(result.FaultType.HasValue && result.FaultType.Value == FaultType.UnhandledException)
+            {
+                throw result.FinalException;
+            }
+
+            throw new Exception("Unknown error occured while running query");
+        }
+
+        return result.Result;
+    }
+
     public async Task<TModel[]> GetQueryRunResults<TModel>(QueryRunId runId,
         int page = 1, int pageSize = 10000, CancellationToken cancellationToken = default)
         where TModel : class, new()
@@ -109,10 +130,6 @@ internal class FlipsideClient : IFlipsideClient
 
         return output;
     }
-
-    private readonly AsyncRetryPolicy<QueryRun> _runPolicy = Policy
-        .HandleResult<QueryRun>(x => x.State != QueryState.Success && x.State != QueryState.Failed && x.State != QueryState.Cancelled)
-        .WaitAndRetryAsync(Backoff.DecorrelatedJitterBackoffV2(TimeSpan.FromSeconds(3), 100));
 
     private async Task<QueryRun> RunQueryAndWaitForCompletionAsync(string sql, CancellationToken cancellationToken = default)
     {
