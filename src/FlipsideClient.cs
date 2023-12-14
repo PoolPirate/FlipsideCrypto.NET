@@ -212,7 +212,12 @@ internal class FlipsideClient : IFlipsideClient
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
         where TModel : class, new()
     {
-        int pageCount = Math.Max(1, rowCount / batchSize);
+        int pageCount = rowCount / batchSize;
+
+        if (rowCount % batchSize != 0)
+        {
+            pageCount += 1;
+        }
 
         for(int i = 0; i < pageCount; i++)
         {
