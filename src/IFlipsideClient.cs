@@ -9,6 +9,9 @@ public interface IFlipsideClient
     public Task<TModel[]> GetQueryRunResults<TModel>(QueryRunId runId,
         int page = 1, int pageSize = 10000, CancellationToken cancellationToken = default)
         where TModel : class, new();
+    public IAsyncEnumerable<TModel[]> GetBatchedQueryRunResultsAsync<TModel>(QueryRunId runId,
+        int batchSize = 10000, CancellationToken cancellationToken = default)
+        where TModel : class, new();
     public Task<TModel[]> RunQueryAsync<TModel>(string sql,
         int page = 1, int pageSize = 10000, CancellationToken cancellationToken = default)
         where TModel : class, new();

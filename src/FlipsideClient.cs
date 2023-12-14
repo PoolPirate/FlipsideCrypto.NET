@@ -156,12 +156,9 @@ internal class FlipsideClient : IFlipsideClient
             throw new ImpossibleException("Query successful but RowCount not set");
         }
 
-        int pageCount = Math.Min(1, queryRun.RowCount.Value / batchSize);
-
-        for(int i = 0; i < pageCount; i++)
+        await foreach(var batch in GetBatchedRunResultsEnumerator<TModel>(queryRun.Id, queryRun.RowCount.Value, batchSize, cancellationToken))
         {
-            var results = await GetQueryRunResults<TModel>(queryRun.Id, i + 1, batchSize, cancellationToken);
-            yield return results;
+            yield return batch;
         }
     }
 
@@ -174,5 +171,36 @@ internal class FlipsideClient : IFlipsideClient
 
         var result = await _jsonRPCClient.SendAsync<CancelQueryRunPayload, CancelQueryRunResult>(_rpcUrl, payload, cancellationToken);
         return result.CancelledQueryRun;
+    }
+
+    public async IAsyncEnumerable<TModel[]> GetBatchedQueryRunResultsAsync<TModel>(QueryRunId runId,
+        int batchSize = 10000, [EnumeratorCancellation] CancellationToken cancellationToken = default) 
+        where TModel : class, new()
+    {
+        var queryRun = await GetQueryRunAsync(runId, cancellationToken);
+
+        if(!queryRun.RowCount.HasValue)
+        {
+            throw new ImpossibleException("Query successful but RowCount not set");
+        }
+
+        await foreach(var batch in GetBatchedRunResultsEnumerator<TModel>(runId, queryRun.RowCount.Value, batchSize, cancellationToken))
+        {
+            yield return batch;
+        }
+    }
+
+    private async IAsyncEnumerable<TModel[]> GetBatchedRunResultsEnumerator<TModel>(QueryRunId runId, 
+        int rowCount, int batchSize,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        where TModel : class, new()
+    {
+        int pageCount = Math.Max(1, rowCount / batchSize);
+
+        for(int i = 0; i < pageCount; i++)
+        {
+            var results = await GetQueryRunResults<TModel>(runId, i + 1, batchSize, cancellationToken);
+            yield return results;
+        }
     }
 }
