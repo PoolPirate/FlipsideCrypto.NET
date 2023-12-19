@@ -124,7 +124,21 @@ internal class FlipsideClient : IFlipsideClient
                 var property = properties[j];
                 int mappingIndex = mappingIndices[j];
 
-                property.SetValue(output[i], JsonSerializer.Deserialize(row[mappingIndex], property.PropertyType));
+                if (property.PropertyType == typeof(string))
+                {
+                    property.SetValue(output[i], row[mappingIndex]?.ToString(), null);
+                } 
+                else
+                {
+                    try
+                    {
+                        property.SetValue(output[i], JsonSerializer.Deserialize(row[mappingIndex], property.PropertyType));
+                    }
+                    catch(Exception ex)
+                    {
+                        throw;
+                    }
+                }
             }
         }
 
