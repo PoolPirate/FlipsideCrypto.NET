@@ -61,7 +61,7 @@ internal class FlipsideClient : IFlipsideClient
 
     private readonly AsyncRetryPolicy<QueryRun> _runPolicy = Policy
         .HandleResult<QueryRun>(x => x.State != QueryState.Success && x.State != QueryState.Failed && x.State != QueryState.Cancelled)
-        .WaitAndRetryAsync(Backoff.DecorrelatedJitterBackoffV2(TimeSpan.FromSeconds(3), 100));
+        .WaitAndRetryAsync(BackoffProvider.JitteredCappedExponentialBackoff(TimeSpan.FromSeconds(1), backoffCap: TimeSpan.FromSeconds(10)));
 
     public async Task<QueryRun> WaitForQueryCompletionAsync(QueryRunId runId, CancellationToken cancellationToken = default)
     {
