@@ -1,6 +1,8 @@
 ﻿using FlipsideCrypto.NET.Configuration;
 using FlipsideCrypto.NET.JsonRPC.Services;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
+using Polly.Retry;
 
 namespace FlipsideCrypto.NET.Extensions;
 public static class IServiceCollectionExtensions
@@ -15,9 +17,10 @@ public static class IServiceCollectionExtensions
 
         configure?.Invoke(builder);
 
-        _ = services.AddSingleton(builder.Build());
         _ = services.AddHttpClient<JsonRPCClient>()
-            .AddStandardResilienceHandler();
+            .AddStandardResilienceHandler(options => options.Retry.ShouldHandle = (RetryPredicateArguments<HttpResponseMessage> args) => new ValueTask<bool>(HttpClientResiliencePredicates.IsTransient(args.Outcome) || args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.BadGateway || args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.GatewayTimeout));
+
+        _ = services.AddSingleton(builder.Build());
         _ = services.AddSingleton<JsonRPCClient>();
         _ = services.AddSingleton<IFlipsideClient, FlipsideClient>();
 
@@ -27,7 +30,9 @@ public static class IServiceCollectionExtensions
     public static IServiceCollection AddFlipsideCrypto(this IServiceCollection services,
         Action<IServiceProvider, FlipsideOptionBuilder> configure)
     {
-        _ = services.AddSingleton<HttpClient>();
+        _ = services.AddHttpClient<JsonRPCClient>()
+            .AddStandardResilienceHandler(options => options.Retry.ShouldHandle = (RetryPredicateArguments<HttpResponseMessage> args) => new ValueTask<bool>(HttpClientResiliencePredicates.IsTransient(args.Outcome) || args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.BadGateway || args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.GatewayTimeout));
+
         _ = services.AddSingleton<JsonRPCClient>();
         _ = services.AddSingleton<IFlipsideClient, FlipsideClient>();
 
