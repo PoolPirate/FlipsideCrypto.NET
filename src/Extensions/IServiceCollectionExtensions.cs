@@ -31,7 +31,12 @@ public static class IServiceCollectionExtensions
         Action<IServiceProvider, FlipsideOptionBuilder> configure)
     {
         _ = services.AddHttpClient<JsonRPCClient>()
-            .AddStandardResilienceHandler(options => options.Retry.ShouldHandle = (RetryPredicateArguments<HttpResponseMessage> args) => new ValueTask<bool>(HttpClientResiliencePredicates.IsTransient(args.Outcome) || args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.BadGateway || args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.GatewayTimeout));
+            .AddStandardResilienceHandler(options => options.Retry.ShouldHandle = (RetryPredicateArguments<HttpResponseMessage> args) => new ValueTask<bool>(HttpClientResiliencePredicates.IsTransient(args.Outcome)
+                || args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.BadGateway
+                || args.Outcome.Result?.StatusCode == System.Net.HttpStatusCode.GatewayTimeout
+                || (args.Outcome.Exception is HttpRequestException ex && (
+                    ex.StatusCode == System.Net.HttpStatusCode.BadGateway || ex.StatusCode == System.Net.HttpStatusCode.GatewayTimeout))
+              ));
 
         _ = services.AddSingleton<JsonRPCClient>();
         _ = services.AddSingleton<IFlipsideClient, FlipsideClient>();
